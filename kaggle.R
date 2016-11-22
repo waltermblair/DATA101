@@ -1,4 +1,6 @@
 library(RSQLite)
+library(plotly)
+library(class)
 
 # Using https://www.r-bloggers.com/using-sqlite-in-r/
 # open connection to database
@@ -25,22 +27,6 @@ Player_Attributes <- dbGetQuery(con, 'select player_fifa_api_id,player_api_id,da
 # taking teams and players in first five matches
 match <- na.omit(Match)
 #nrow(match)
-
-# column numbers of home and away players within Match table
-home_players <- 56:66
-away_players <- 67:77
-# other useful column numbers within Match table
-home_team <- 8
-away_team <- 9
-home_goals <- 10
-away_goals <- 11
-
-#head(match[,home_players])
-#head(match[,away_players])
-home_team <- match[,home_team]
-away_team <- match[,away_team]
-home_goals <- match[,home_goals]
-away_goals <- match[,away_goals]
 
 match <- match[,c(1,7:11,56:66,67:77)]
 
@@ -103,4 +89,51 @@ df <- data.frame(df, home_team_overall_ratings, away_team_overall_ratings)
 
 # remove player_id from df
 df_small <- df[,c(2:4,29:31)]
-head(df_small)
+#head(df_small)
+
+# Basic plot of match_score to home_team_overall_ratings
+# Using https://plot.ly/r/
+x <- df_small$home_team_overall_ratings
+y <- df_small$match_score
+
+# Plot of mean home_team_overall_ratings to win versus loss
+wins <- df_small[df_small$match_score > 0,]
+losses <- df_small[df_small$match_score < 0,]
+draws <- df_small[df_small$match_score == 0,]
+
+cat("Number of wins: ",nrow(wins),"\nNumber of losses: ",nrow(losses), "\nNumber of draws: ",nrow(draws), "\n")
+
+x <- wins$home_team_overall_ratings
+y <- losses$home_team_overall_ratings
+z <- draws$home_team_overall_ratings
+
+barplot(c(mean(x),mean(y),mean(z)),names.arg=c("wins","losses","draws"),main="Not so informative",ylab="Total Team Rating",ylim=c(750,850))
+
+# Create a column with the total_player_rating spread between the two teams
+df_small$total_rating_spread <- (df_small$home_team_overall_ratings - df_small$away_team_overall_ratings)
+
+# Plot match_score to total_rating_spread
+x <- df_small$total_rating_spread
+y <- df_small$match_score
+plot(y~x, xlab="Home v. Away Team Rating Spread (Home Adv. > 0)", main="Maybe a positive correlationif we look at more than 100 matches?", ylab="Score Match (Home Win > 0)")
+
+# Plot mean total_rating_spread to win versus loss
+x <- df_small[df_small$match_score>0,]$total_rating_spread
+y <- df_small[df_small$match_score<0,]$total_rating_spread
+z <- df_small[df_small$match_score==0,]$total_rating_spread
+
+barplot(c(mean(x),mean(y),mean(z)),names.arg=c("wins","losses","draws"),main="this looks super promising",ylab="Home v. Away Team Rating Spread (Home Adv. > 0)")
+
+# Add column of win/loss/draw for convenience
+win_loss <- ifelse(df_small$match_score>0, "win", ifelse(df_small$match_score<0, "loss", "draw"))
+df_small <- data.frame(df_small[,1:4],win_loss,df_small[,5:7])
+
+# Boxplot of total_rating_spread to win_loss
+boxplot(total_rating_spread~win_loss,data=df_small, main="Total Rating Spread versus Win/Loss")
+
+# KNN - find closest match neighbor using just total_rating_spread for now
+# Using http://stat.ethz.ch/R-manual/R-devel/library/class/html/knn.html
+#train <- df_small[11:100,]
+#test <- df_small[1:10,]
+#cl <- factor(df_small[11:100,'win_loss'])
+#knn(train, test, cl, k=3)
