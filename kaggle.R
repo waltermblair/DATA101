@@ -30,8 +30,8 @@ match <- na.omit(Match)
 
 match <- match[,c(1,7:11,56:66,67:77)]
 
-### This statement cuts match down to first 100 matches
-match <- match[1:100,]
+### This statement cuts match down to first 1000 matches
+match <- match[1:1000,]
 cat("now working with first ", nrow(match), " rows\n")
 
 # clean version of Match table
@@ -133,7 +133,12 @@ boxplot(total_rating_spread~win_loss,data=df_small, main="Total Rating Spread ve
 
 # KNN - find closest match neighbor using just total_rating_spread for now
 # Using http://stat.ethz.ch/R-manual/R-devel/library/class/html/knn.html
-#train <- df_small[11:100,]
-#test <- df_small[1:10,]
-#cl <- factor(df_small[11:100,'win_loss'])
-#knn(train, test, cl, k=3)
+train <- df_small[101:1000,'total_rating_spread']
+test <- df_small[1:100,'total_rating_spread']
+cl <- df_small[101:1000,'win_loss']
+actual <- df_small[1:100,'win_loss']
+KNN <- knn(data.frame(train), data.frame(test), cl, k=10)
+cat("KNN Accuracy: ", (length(which(actual == KNN))/length(actual) * 100), "%\n")
+actual
+cat("\n")
+KNN
