@@ -26,7 +26,7 @@ match <- na.omit(Match)
 match <- match[,c(1,7:11,56:66,67:77)]
 
 ### This statement cuts match down to first 1000 matches
-match <- match[1:1000,]
+match <- match[,]
 cat("now working with first ", nrow(match), " rows\n")
 
 ### adding useful columns to Match table
@@ -192,13 +192,14 @@ boxplot(total_rating_spread~win_loss,data=df_small, main="Total Rating Spread ve
 
 # KNN - find closest match neighbor using just total_rating_spread for now
 # Using http://stat.ethz.ch/R-manual/R-devel/library/class/html/knn.html
+# Using k = square root of size of train set, see https://www.researchgate.net/post/How_can_we_find_the_optimum_K_in_K-Nearest_Neighbor
 n = nrow(match)
 
 train <- df_small[(n/10+1):n,'total_rating_spread']
 test <- df_small[1:(n/10),'total_rating_spread']
 cl <- df_small[(n/10+1):n,'win_loss']
 actual <- df_small[1:(n/10),'win_loss']
-KNN <- knn(data.frame(train), data.frame(test), cl, k=10)
+KNN <- knn(data.frame(train), data.frame(test), cl, k=sqrt(0.9*n))
 cat("KNN Accuracy (rating spread): ", (length(which(actual == KNN))/length(actual) * 100), "%\n")
 
 # Adding raw team rating to above
@@ -206,15 +207,26 @@ train <- df_small[(n/10+1):n,c('home_team_overall_ratings','total_rating_spread'
 test <- df_small[1:(n/10),c('home_team_overall_ratings','total_rating_spread')]
 cl <- df_small[(n/10+1):n,'win_loss']
 actual <- df_small[1:(n/10),'win_loss']
-KNN <- knn(train, test, cl, k=10)
+KNN <- knn(train, test, cl, k=sqrt(0.9*n))
 cat("KNN Accuracy (spread + total rating): ", (length(which(actual == KNN))/length(actual) * 100), "%\n")
+
+head(df_small)
+
+# Adding team IDs to team rating (excluding raw team rating)
+train <- df_small[(n/10+1):n,c('home_team_api_id','away_team_api_id','total_rating_spread')]
+test <- df_small[1:(n/10),c('home_team_api_id','away_team_api_id','total_rating_spread')]
+cl <- df_small[(n/10+1):n,'win_loss']
+actual <- df_small[1:(n/10),'win_loss']
+KNN <- knn(train, test, cl, k=sqrt(0.9*n))
+cat("KNN Accuracy (spread + teamIDs): ", (length(which(actual == KNN))/length(actual) * 100), "%\n")
+
 
 # Adding other variables as well
 train <- df_small[(n/10+1):n,c('total_rating_spread', 'total_potential_spread', 'total_stamina_spread', 'total_agility_spread', 'total_aggression_spread')] 
 test <- df_small[1:(n/10),c('total_rating_spread', 'total_potential_spread', 'total_stamina_spread', 'total_agility_spread', 'total_aggression_spread')]
 cl <- df_small[(n/10+1):n,'win_loss']
 actual <- df_small[1:(n/10),'win_loss']
-KNN <- knn(train, test, cl, k=10)
+KNN <- knn(train, test, cl, k=sqrt(0.9*n))
 cat("KNN Accuracy (all variables): ", (length(which(actual == KNN))/length(actual) * 100), "%\n")
 
 
@@ -250,9 +262,33 @@ fit <- randomForest(win_loss ~ .,
 print(fit)
 
 
-# Tweak KNN options - k, test/train
+# Tweak KNN options - add k-fold cross-val
+# Reference - http://stats.stackexchange.com/questions/61090/how-to-split-a-data-set-to-do-10-fold-cross-validation
+cat("\nRepeating KNN with 10-fold cross validation rather than single train/test\n")
+#Randomly shuffle the data
+df_shuffle<-df_small[sample(nrow(df_small)),]
+
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(df_shuffle)),breaks=10,labels=FALSE)
+
+#Perform 10 fold cross validation
+sumKNN = 0
+for(i in 1:10){
+    #Segement your data by fold using the which() function 
+    testIndexes <- which(folds==i,arr.ind=TRUE)
+    test <- df_shuffle[testIndexes, c('home_team_api_id','away_team_api_id','total_rating_spread', 'total_potential_spread', 'total_stamina_spread', 'total_agility_spread', 'total_aggression_spread')]
+    train <- df_shuffle[-testIndexes, c('home_team_api_id','away_team_api_id','total_rating_spread', 'total_potential_spread', 'total_stamina_spread', 'total_agility_spread', 'total_aggression_spread')]
+    #Use the test and train data partitions however you desire...
+    cl <- df_shuffle[-testIndexes,'win_loss']
+    actual <- df_shuffle[-testIndexes,'win_loss']
+    KNN <- knn(train, test, cl, k=sqrt(0.9*n))
+    sumKNN = sumKNN + (length(which(actual == KNN))/length(actual) * 100)
+    }
+KNN = sumKNN / 10
+cat("KNN Accuracy (K-fold, all variables): ", KNN, "%\n")
+
+
 # Additional visualizations
 # ANCOVA
 # Could try matching player rating with the date of the match...tough
-
 
