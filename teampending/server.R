@@ -37,14 +37,14 @@ shinyServer(function(input, output, session){
 	    obj<-switch(input$plottype,
            "winloss" = matches,
            "teamcomparison" = teams_long)	  	 
-		var.opts<-namel(colnames(obj))
+		var.opts<-namel(colnames(obj)[8:ncol(obj)])
 		selectInput("yvariable","Y-axis:", var.opts) # update UI 				 
 		}) 
 		
 	output$caption<-renderText({
 		switch(input$plottype,
-			"winloss" 	=	"Variables affecting home team wins/draws/losses",
-			"teamcomparison" 		=	"Comparisons of key ratings across league")
+			"winloss" 	=	"Home match outcomes versus key ratings across all leagues",
+			"teamcomparison" 		=	"Key ratings differences between two teams in a league")
 		})
 			
 	
@@ -59,13 +59,12 @@ shinyServer(function(input, output, session){
 	plot.obj$data<<-switch(input$plottype,
 	        "winloss" = matches,
 	        "teamcomparison" = teams_long)
-	plot.obj$yvariable<<-with(plot.obj$data,get(input$yvariable)) 
 	
 	#dynamic plotting options
 	#http://stackoverflow.com/questions/6085238/adding-space-between-bars-in-ggplot2
 	plottype<-switch(input$plottype,
 	        "teamcomparison" 	=	geom_boxplot(
-	                                    position = position_dodge(width=1),
+	                                    position = position_dodge(width=0.8),
 	                                    width=.5,   
 	                                    show.legend=F),
 			"winloss" 	= 	geom_boxplot()
@@ -83,10 +82,9 @@ shinyServer(function(input, output, session){
 	#control for 1D or 2D graphs 
 	# http://stackoverflow.com/questions/30440335/r-comparing-values-in-a-vector-to-a-single-value-using-the-apply-family
 	
-	selected_team <- rep(input$team1, nrow(plot.obj$data))
-	away_team <- rep(input$team2, nrow(plot.obj$data))
-	
 	if(input$plottype=="teamcomparison") {
+	    selected_team <- rep(input$team1, nrow(plot.obj$data))
+	    away_team <- rep(input$team2, nrow(plot.obj$data))
 	    home <- plot.obj$data[which(plot.obj$data[,'home_team_long_name'] == selected_team),]
 	    away <- plot.obj$data[which(plot.obj$data[,'home_team_long_name'] == away_team),]
 	    comparison <- rbind(home, away)
@@ -96,9 +94,9 @@ shinyServer(function(input, output, session){
 				  y = comparison[,'value'],
 				  fill      = comparison[,'home_team_long_name'],
 				)
-		) + plottype + labs(x="Team", y="Rating") + 
+		) + plottype + ylab("Rating") + labs(list(x = "Home", y = "Away")) +
 		    theme(axis.title.x=element_text(size=20), 
-		          axis.title.y=element_text(size=20),
+		          axis.title.y=element_text(size=0),
 		          axis.text.x=element_text(size=15),
 		          axis.text.y=element_text(size=15)) + 
 		    coord_cartesian(ylim=c(600,950)) +
@@ -107,18 +105,24 @@ shinyServer(function(input, output, session){
 	
 	}
 	
-	else if(input$plottype=="winloss")	{		
+	else if(input$plottype=="winloss")	{
+	    plot.obj$yvariable<<-with(plot.obj$data,get(input$yvariable)) 
+	
 		p<-ggplot(matches, 
 				aes(
 					x 		= matches$win_loss, 
-					y 		= input$yvariable,
+					y 		= plot.obj$yvariable,
 					fill 	= as.factor(matches$win_loss)
 				)
-		) + plottype
+		) + plottype + theme(axis.title.x=element_text(size=0), 
+		                     axis.title.y=element_text(size=20),
+		                     axis.text.x=element_text(size=20),
+		                     axis.text.y=element_text(size=15),
+		                     legend.position="none")
 				
-		if(input$show.points==TRUE) { 
-			p<-p+ geom_point(color='black',alpha=0.5, position = 'jitter')
-		}
+		#if(input$show.points==TRUE) { 
+		#	p<-p+ geom_point(color='black',alpha=0.5, position = 'jitter')
+		#}
 				
 	} 
 	
