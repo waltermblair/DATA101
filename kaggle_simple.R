@@ -37,7 +37,7 @@ match <- merge(match, League[,c("league_id", "league_name")], by="league_id")
 match <- data.frame(match[,'league_name'], match[,3:ncol(match)-1])
 
 ### This statement cuts match down to first n matches
-match <- match[1:100,]
+match <- match[,]
 cat("now working with first ", nrow(match), " rows\n")
 
 ### adding useful columns to Match table
@@ -147,17 +147,23 @@ df_matches <- df
 
 ## Work on df_matches
 # Add column of win/loss/draw to df_matches for convenience
-win_loss <- ifelse(df_matches$match_score>0, "win", ifelse(df_matches$match_score<0, "loss", "draw"))
+win_loss <- ifelse(df_matches$match_score>0, "Win", ifelse(df_matches$match_score<0, "Loss", "Draw"))
 df_matches <- data.frame(df_matches[,c(1:4,7)],win_loss,df_matches[,8:ncol(df_matches)])
 colnames(df_matches)[1] <- "league_name"
 
-## Work on df_teams
 # Create a column with the spread of these variables between the two teams for each match
 df_matches$total_rating_spread <- (df_matches$home_team_overall_ratings - df_matches$away_team_overall_ratings)
 df_matches$total_potential_spread <- (df_matches$home_team_overall_potentials - df_matches$away_team_overall_potentials)
 df_matches$total_stamina_spread <- (df_matches$home_team_overall_staminas - df_matches$away_team_overall_staminas)
 df_matches$total_agility_spread <- (df_matches$home_team_overall_agilities - df_matches$away_team_overall_agilities)
 df_matches$total_aggression_spread <- (df_matches$home_team_overall_aggressions - df_matches$away_team_overall_aggressions)
+
+# simplify column names for the sake of shiny
+colnames(df_matches)[17] <- "Overall"
+colnames(df_matches)[18] <- "Potential"
+colnames(df_matches)[19] <- "Stamina"
+colnames(df_matches)[20] <- "Agility"
+colnames(df_matches)[21] <- "Aggression"
 
 ## Work on df_teams
 df_teams <- merge(df_teams, Team[,c('home_team_api_id', 'team_short_name', 'team_long_name')], by='home_team_api_id')
@@ -182,6 +188,13 @@ df_teams$away_team_long_name <- as.character(df_teams$away_team_long_name)
 df_home <- df_teams[,c(1:4, 8:12)]
 df_away <- df_teams[,c(1,5:7,13:ncol(df_teams))]
 
+# simplify column names for the sake of shiny
+colnames(df_home)[5] <- "Overall"
+colnames(df_home)[6] <- "Potential"
+colnames(df_home)[7] <- "Stamina"
+colnames(df_home)[8] <- "Agility"
+colnames(df_home)[9] <- "Aggression"
+
 # long skinny format
 # See http://stackoverflow.com/questions/22305023/how-to-get-a-barplot-with-several-variables-side-by-side-grouped-by-a-factor
 #df_home<-aggregate(df_home,by=list(df_home$league_name, df_home$home_team_short_name, df_home$home_team_long_name),mean)
@@ -190,7 +203,11 @@ df_away <- df_teams[,c(1,5:7,13:ncol(df_teams))]
 #colnames(df_home)[3] <- "home_team_long_name"
 #df_home <- df_home[,c(1:3, 5, 8:ncol(df_home))]
 df_home_long<-melt(df_home,id.vars=c("home_team_long_name", "league_name", "home_team_short_name", "home_team_api_id"))
-
+df_home_league <- df_home_long
+df_home_league <- data.frame(df_home_league[,2],df_home_league[,1],df_home_league[,3:ncol(df_home_league)])
+colnames(df_home_league)[1] <- "home_team_long_name"
+colnames(df_home_league)[2] <- "league_name"
+df_home_long <- rbind(df_home_long, df_home_league)
 
 # Output to csv
 write.csv(df_matches, file = "data_matches.csv")

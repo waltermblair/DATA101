@@ -1,7 +1,9 @@
 library(RSQLite)
+library(lattice)
 library(plotly)
 library(class)
 library(randomForest)
+library(reshape2)
 
 # Using https://www.r-bloggers.com/using-sqlite-in-r/
 # open connection to database
@@ -13,7 +15,8 @@ alltables <- dbListTables(con)
 # Using http://www.w3schools.com/sql/sql_select.asp
 # create dataframes from database tables
 Match <- dbGetQuery(con, 'select * from Match')
-Team <- dbGetQuery(con, 'select team_api_id,team_fifa_api_id,team_short_name from Team')
+Team <- dbGetQuery(con, 'select team_api_id,team_fifa_api_id,team_short_name,team_long_name from Team')
+colnames(Team)[1] <- 'home_team_api_id'
 Player <- dbGetQuery(con, 'select player_api_id,player_name,player_fifa_api_id from Player')
 Player_Attributes <- dbGetQuery(con, 'select player_fifa_api_id,player_api_id,date,overall_rating,potential,stamina,agility,aggression,reactions from Player_Attributes')
 Team_Attributes <- dbGetQuery(con, 'select team_fifa_api_id,team_api_id,date from Team_Attributes')
@@ -26,7 +29,7 @@ match <- na.omit(Match)
 match <- match[,c(1,7:11,56:66,67:77)]
 
 ### This statement cuts match down to first 1000 matches
-match <- match[,]
+match <- match[1:100,]
 cat("now working with first ", nrow(match), " rows\n")
 
 ### adding useful columns to Match table
@@ -181,11 +184,28 @@ x <- df_small[df_small$match_score>0,]$total_rating_spread
 y <- df_small[df_small$match_score<0,]$total_rating_spread
 z <- df_small[df_small$match_score==0,]$total_rating_spread
 
-barplot(c(mean(x),mean(y),mean(z)),names.arg=c("wins","losses","draws"),main="this looks super promising",ylab="Home v. Away Team Rating Spread (Home Adv. > 0)",ylim=c(750,850))
+barplot(c(mean(x),mean(y),mean(z)),names.arg=c("wins","losses","draws"),main="this looks super promising",ylab="Home v. Away Team Rating Spread (Home Adv. > 0)")
 
 # Add column of win/loss/draw for convenience
 win_loss <- ifelse(df_small$match_score>0, "win", ifelse(df_small$match_score<0, "loss", "draw"))
 df_small <- data.frame(df_small[,1:4],win_loss,df_small[,5:ncol(df_small)])
+
+
+df_small <- merge(df_small, Team[,c('home_team_api_id', 'team_short_name', 'team_long_name')], by='home_team_api_id')
+
+# Set df_shiny aside to get in long skinny format
+df_small$team_short_name <- as.factor(df_small$team_short_name)
+df_shiny<-df_small
+df_home<-df_shiny[,c('team_short_name', 'home_team_overall_ratings',
+ 'home_team_overall_potentials', 'home_team_overall_staminas', 'home_team_overall_agilities', 
+ 'home_team_overall_aggressions')]
+
+# See http://stackoverflow.com/questions/22305023/how-to-get-a-barplot-with-several-variables-side-by-side-grouped-by-a-factor
+
+test.vector<-df_home$team_short_name
+df_home<-aggregate(df_home,by=list(df_home$team_short_name),mean)
+colnames(df_home)[1] <- "team_short_name"
+df_home_long<-melt(df_home,id.vars="team_short_name")
 
 # Boxplot of total_rating_spread to win_loss
 boxplot(total_rating_spread~win_loss,data=df_small, main="Total Rating Spread versus Win/Loss")
@@ -289,6 +309,16 @@ cat("KNN Accuracy (K-fold, all variables): ", KNN, "%\n")
 
 
 # Additional visualizations
+# Boxplot of multiple vars to win_loss
+# ftp://cran.r-project.org/pub/R/web/packages/tigerstats/vignettes/bwplot.html
+bwplot(win_loss~total_rating_spread|total_potential_spread, data=df_small, main="Total Rating Spread versus Win/Loss")
+
+
+# Output to csv
+write.csv(df_small, file = "data.csv")
+write.csv(df_home_long, file = "data_home.csv")
+
 # ANCOVA
-# Could try matching player rating with the date of the match...tough
+# Could try matching player rating with the date of the match...
+
 
